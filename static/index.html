@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Exam Proctoring Portal</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --ok-green: #22c55e;
+            --warn-amber: #f59e0b;
+            --alert-red: #ef4444;
+            --accent-blue: #3b82f6;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 24px;
+        }
+        header {
+            width: 100%;
+            max-width: 1100px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #334155;
+        }
+        header h1 { font-size: 1.5rem; font-weight: 700; color: var(--text-main); }
+        .badge {
+            background: #334155;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .main-grid {
+            display: grid;
+            grid-template-columns: 660px 1fr;
+            gap: 24px;
+            width: 100%;
+            max-width: 1100px;
+        }
+        .video-card, .telemetry-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+            border: 1px solid #334155;
+        }
+        .video-wrapper {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+        }
+        #videoElement { display: none; }
+        #canvas { width: 640px; height: 480px; display: block; }
+        .status-banner {
+            margin-top: 14px;
+            padding: 14px 18px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+        .status-ok { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid var(--ok-green); }
+        .status-calibrating { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid var(--accent-blue); }
+        .status-alert { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid var(--alert-red); }
+        
+        .telemetry-card h2 {
+            font-size: 1.15rem;
+            margin-bottom: 16px;
+            color: var(--text-main);
+            border-bottom: 1px solid #334155;
+            padding-bottom: 8px;
+        }
+        .metric-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .metric-box {
+            background: #0f172a;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+        }
+        .metric-label { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .metric-val { font-size: 1.35rem; font-weight: 700; margin-top: 4px; color: var(--text-main); }
+        
+        .log-box {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            height: 210px;
+            overflow-y: auto;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 0.82rem;
+            margin-bottom: 16px;
+        }
+        .log-entry { margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px dashed #1e293b; }
+        .log-alert { color: #f87171; }
+        .log-ok { color: #94a3b8; }
+
+        .btn-group { display: flex; gap: 10px; }
+        .btn {
+            flex: 1;
+            padding: 10px 14px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            font-size: 0.9rem;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn-primary { background: var(--accent-blue); color: #fff; }
+        .btn-danger { background: #475569; color: #fff; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Online Assessment Proctoring System</h1>
+        <span class="badge">Stack: OpenCV • NumPy • Pandas • Scikit-Learn • FastAPI</span>
+    </header>
+
+    <div class="main-grid">
+        <div class="video-card">
+            <div class="video-wrapper">
+                <video id="videoElement" autoplay playsinline></video>
+                <canvas id="canvas" width="640" height="480"></canvas>
+            </div>
+            <div id="statusBanner" class="status-banner status-calibrating">
+                <span id="statusText">INITIALIZING CAMERA...</span>
+                <span id="calibCounter">0 / 50 frames</span>
+            </div>
+        </div>
+
+        <div class="telemetry-card">
+            <h2>Live ML Telemetry</h2>
+            <div class="metric-grid">
+                <div class="metric-box">
+                    <div class="metric-label">Faces Detected</div>
+                    <div class="metric-val" id="mFaces">0</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Eyes Detected</div>
+                    <div class="metric-val" id="mEyes">0</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Movement Velocity</div>
+                    <div class="metric-val" id="mMove">0.0</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Head Yaw Offset</div>
+                    <div class="metric-val" id="mOffset">0 px</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Isolation Forest</div>
+                    <div class="metric-val" id="mModel">Calibrating</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Total Violations</div>
+                    <div class="metric-val" id="mViolations" style="color: #f87171;">0</div>
+                </div>
+            </div>
+
+            <h2>Event Log</h2>
+            <div class="log-box" id="logBox"></div>
+
+            <div class="btn-group">
+                <a href="/export-csv" target="_blank" class="btn btn-primary">Download CSV Report</a>
+                <button onclick="resetCalibration()" class="btn btn-danger">Recalibrate Model</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('videoElement');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const statusBanner = document.getElementById('statusBanner');
+        const statusText = document.getElementById('statusText');
+        const calibCounter = document.getElementById('calibCounter');
+        const logBox = document.getElementById('logBox');
+
+        let ws = new WebSocket(`ws://${window.location.host}/ws`);
+
+        function addLog(msg, isAlert = false) {
+            const div = document.createElement('div');
+            div.className = 'log-entry ' + (isAlert ? 'log-alert' : 'log-ok');
+            const now = new Date().toLocaleTimeString();
+            div.innerText = `[${now}] ${msg}`;
+            logBox.prepend(div);
+        }
+
+        ws.onopen = () => addLog("WebSocket connected to FastAPI server.");
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            // Update telemetry cards
+            document.getElementById('mFaces').innerText = data.num_faces;
+            document.getElementById('mEyes').innerText = data.num_eyes;
+            document.getElementById('mMove').innerText = data.movement_score.toFixed(1);
+            document.getElementById('mOffset').innerText = `${data.head_offset.toFixed(0)} px`;
+            document.getElementById('mModel').innerText = data.model_trained ? "Active (Trained)" : "Calibrating...";
+            document.getElementById('mViolations').innerText = data.total_violations;
+            calibCounter.innerText = data.model_trained ? `Anomaly Score: ${data.anomaly_score.toFixed(2)}` : `Calibrating: ${data.frame_count}/50`;
+
+            // Draw bounding boxes on canvas if face coordinates returned
+            if (data.bbox && data.bbox.length === 4) {
+                const [x, y, w, h] = data.bbox;
+                ctx.strokeStyle = data.status === "OK" ? "#22c55e" : "#ef4444";
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x, y, w, h);
+            }
+
+            // Update banner state
+            statusText.innerText = data.status;
+            if (!data.model_trained && data.status === "OK") {
+                statusBanner.className = "status-banner status-calibrating";
+                statusText.innerText = "CALIBRATING BASELINE POSTURE...";
+            } else if (data.status === "OK") {
+                statusBanner.className = "status-banner status-ok";
+            } else {
+                statusBanner.className = "status-banner status-alert";
+                addLog(data.status, true);
+            }
+        };
+
+        navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } })
+            .then((stream) => { video.srcObject = stream; })
+            .catch((err) => { addLog("Webcam error: " + err, true); });
+
+        setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN && video.readyState === video.HAVE_ENOUGH_DATA) {
+                ctx.drawImage(video, 0, 0, 640, 480);
+                const dataURL = canvas.toDataURL('image/jpeg', 0.6);
+                ws.send(dataURL);
+            }
+        }, 200); // 5 FPS
+
+        function resetCalibration() {
+            fetch('/reset', { method: 'POST' })
+                .then(() => addLog("Model recalibration triggered."));
+        }
+    </script>
+</body>
+</html>
